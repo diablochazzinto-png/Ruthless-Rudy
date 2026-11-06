@@ -28,6 +28,45 @@ const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
 
 const AUTO_REPLIES = [
   {
+    triggers: ['how do i join', 'how to join', 'join irv'],
+    response: 'Interested in joining IRV? 👑 Head over to our tickets channel and submit a Military Application!'
+  },
+  {
+    triggers: ['how do i ally', 'how to ally', 'alliance'],
+    response: 'Interested in forming an alliance with IRV? 🤝 Open a ticket and our leadership will assist you!'
+  },
+  {
+    triggers: ['what is irv', 'what does irv mean'],
+    response: 'IRV stands for The Imperium Revenant Empire. An empire built upon strength, loyalty, and determination. 👑'
+  },
+  {
+    triggers: ['who is the owner', 'who owns irv'],
+    response: 'Want to know who's behind the empire? Check our leadership roster! 👑'
+  },
+  {
+    triggers: ['recruitment', 'recruiting', 'are you recruiting'],
+    response: 'YES! IRV is welcoming new recruits. Head to our tickets channel to apply for the military! ⚔️'
+  },
+  {
+    triggers: ['what are the requirements', 'requirements to join'],
+    response: 'Our military application team can provide you with the current requirements. Open a ticket to get started!'
+  },
+  {
+    triggers: ['where is the application', 'where do i apply'],
+    response: 'Look for the 🎫 tickets channel! Open a ticket and select the Military Application option.'
+  },
+  {
+    triggers: ['what game do you play', 'what games'],
+    response: 'IRV primarily operates in Booga Booga SMP! Come join us on the battlefield. ⚔️'
+  },
+  {
+    triggers: ['is irv active', 'are you active'],
+    response: 'Of course! IRV is continuously building its community. Stay tuned for announcements, activities, and events! 🔥'
+  },
+  {
+    triggers: ['how do i contact staff', 'contact staff', 'need help'],
+    response: 'Need assistance? Open a ticket and our staff team will help you out! 🎫'
+  },
     triggers: ['hi', 'hello', 'hey'],
     response: 'Hey there! 👋'
   },
@@ -44,8 +83,8 @@ const AUTO_REPLIES = [
     response: 'See you later! 👋'
   },
   {
-    triggers: ['who are you'],
-    response: "I'm Reaper Randy! 💀"
+    triggers: ['i hate you rudy', 'Rudy sucks', 'rudy is stupid', 'rudy dumb'],
+    response: "I may be artificial, but at least I have better manners than you. heh."
   },
   {
     triggers: ['ruthless rudy', 'rudy'],
