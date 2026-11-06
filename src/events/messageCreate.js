@@ -21,7 +21,33 @@ import {
 
 const MESSAGE_XP_RATE_LIMIT_ATTEMPTS = 12;
 const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
+// ==========================================
+// TITANBOT AUTO-REPLY SYSTEM
+// Add as many triggers and replies as you want.
+// ==========================================
 
+const AUTO_REPLIES = [
+  {
+    triggers: ['hi', 'hello', 'hey'],
+    response: 'Hey there! 👋'
+  },
+  {
+    triggers: ['good morning', 'morning'],
+    response: 'Good morning! ☀️'
+  },
+  {
+    triggers: ['good night'],
+    response: 'Good night! Sleep well! 🌙'
+  },
+  {
+    triggers: ['bye', 'goodbye'],
+    response: 'See you later! 👋'
+  },
+  {
+    triggers: ['who are you'],
+    response: "I'm Reaper Randy! 💀"
+  }
+];
 export default {
   name: Events.MessageCreate,
   async execute(message, client) {
@@ -34,7 +60,7 @@ export default {
       if (countingProcessed) {
         return;
       }
-
+await handleAutoReply(message);
       await handlePrefixCommand(message, client);
 
       await handleLeveling(message, client);
@@ -249,5 +275,30 @@ async function handleLeveling(message, client) {
     }
   } catch (error) {
     logger.error('Error handling leveling for message:', error);
+  }
+async function handleAutoReply(message) {
+  try {
+    const content = message.content.toLowerCase();
+
+    const matchedReply = AUTO_REPLIES.find(entry =>
+      entry.triggers.some(trigger => {
+        const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const pattern = new RegExp(`(^|\\W)${escaped}(?=$|\\W)`, 'i');
+
+        return pattern.test(content);
+      })
+    );
+
+    if (!matchedReply) return;
+
+    await message.reply({
+      content: matchedReply.response,
+      allowedMentions: {
+        repliedUser: false
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error handling auto-reply:', error);
   }
 }
