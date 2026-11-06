@@ -41,7 +41,7 @@ const AUTO_REPLIES = [
   },
   {
     triggers: ['who is the owner', 'who owns irv'],
-    response: 'Want to know who's behind the empire? Check our leadership roster! 👑'
+    response: "Want to know who's behind the empire? Check our leadership roster! 👑"
   },
   {
     triggers: ['recruitment', 'recruiting', 'are you recruiting'],
@@ -67,6 +67,7 @@ const AUTO_REPLIES = [
     triggers: ['how do i contact staff', 'contact staff', 'need help'],
     response: 'Need assistance? Open a ticket and our staff team will help you out! 🎫'
   },
+  {
     triggers: ['hi', 'hello', 'hey'],
     response: 'Hey there! 👋'
   },
@@ -83,16 +84,16 @@ const AUTO_REPLIES = [
     response: 'See you later! 👋'
   },
   {
-    triggers: ['i hate you rudy', 'Rudy sucks', 'rudy is stupid', 'rudy dumb'],
-    response: "I may be artificial, but at least I have better manners than you. heh."
+    triggers: ['i hate you rudy', 'rudy sucks', 'rudy is stupid', 'rudy dumb'],
+    response: 'I may be artificial, but at least I have better manners than you. heh.'
   },
   {
-    triggers: ['ruthless rudy', 'rudy'],
+    triggers: ['ruthless rudy'],
     response: 'You called? 💀'
   },
   {
     triggers: ['irv'],
-    response: 'THE IMPERIUM REVENANT EMPIRE!'
+    response: 'THE IMPERIUM REVENANT EMPIRE! 👑'
   },
   {
     triggers: ['are you alive'],
