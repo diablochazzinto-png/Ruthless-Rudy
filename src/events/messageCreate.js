@@ -72,16 +72,14 @@ export default {
       if (countingProcessed) {
         return;
       }
-await handleAutoReply(message);
+      await handleAutoReply(message)
       await handlePrefixCommand(message, client);
-
       await handleLeveling(message, client);
     } catch (error) {
       logger.error('Error in messageCreate event:', error);
     }
   }
 };
-
 async function handlePrefixCommand(message, client) {
   try {
     const guildConfig = await getGuildConfig(client, message.guild.id);
