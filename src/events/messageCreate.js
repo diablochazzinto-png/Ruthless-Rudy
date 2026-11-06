@@ -41,24 +41,24 @@ const AUTO_REPLIES = [
   },
   {
     triggers: ['bye', 'goodbye'],
-    response: 'See you later! '
+    response: 'See you later! 👋'
   },
   {
     triggers: ['who are you'],
-    response: "I'm Reaper Randy! "
-  }
+    response: "I'm Reaper Randy! 💀"
+  },
   {
-  triggers: ['reaper', 'reaper randy'],
-  response: 'You called? '
-},
-{
-  triggers: ['irv'],
-  response: 'THE IMPERIUM REVENANT EMPIRE!'
-},
-{
-  triggers: ['are you alive'],
-  response: 'Unfortunately, yes. 
-},
+    triggers: ['reaper', 'reaper randy'],
+    response: 'You called? 💀'
+  },
+  {
+    triggers: ['irv'],
+    response: 'THE IMPERIUM REVENANT EMPIRE!'
+  },
+  {
+    triggers: ['are you alive'],
+    response: 'Unfortunately, yes. 💀'
+  }
 ];
 export default {
   name: Events.MessageCreate,
