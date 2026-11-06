@@ -97,38 +97,38 @@ export const botConfig = {
       secondary: "#250000",
 
       // Standard status colors for success/error/warning/info messages.
-      success: "#57F287",
-      error: "#ED4245",
-      warning: "#FEE75C",
-      info: "#3498DB",
+      success: "#250000",
+      error: "#250000",
+      warning: "#250000",
+      info: "#250000",
 
       // Neutral utility colors.
-      light: "#FFFFFF",
-      dark: "#202225",
-      gray: "#99AAB5",
+      light: "#250000",
+      dark: "#250000",
+      gray: "#250000",
 
       // Discord-style palette shortcuts.
-      blurple: "#5865F2",
-      green: "#57F287",
-      yellow: "#FEE75C",
-      fuchsia: "#EB459E",
-      red: "#ED4245",
-      black: "#000000",
+      blurple: "#250000",
+      green: "#250000",
+      yellow: "#250000",
+      fuchsia: "#250000",
+      red: "#250000",
+      black: "#250000",
 
       // Feature-specific colors.
       giveaway: {
-        active: "#57F287",
-        ended: "#ED4245",
+        active: "#250000",
+        ended: "#250000",
       },
       ticket: {
-        open: "#57F287",
-        claimed: "#FAA61A",
-        closed: "#ED4245",
-        pending: "#99AAB5",
+        open: "#250000",
+        claimed: "#250000",
+        closed: "#250000",
+        pending: "#250000",
       },
-      economy: "#F1C40F",
-      birthday: "#E91E63",
-      moderation: "#9B59B6",
+      economy: "#250000",
+      birthday: "#250000",
+      moderation: "#250000",
 
       // Ticket priority color mapping.
       priority: {
