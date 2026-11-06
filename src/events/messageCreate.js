@@ -45,7 +45,7 @@ const AUTO_REPLIES = [
   },
   {
     triggers: ['recruitment', 'recruiting', 'are you recruiting'],
-    response: 'YES! IRV is welcoming new recruits. Head to our tickets channel to apply for the military! ⚔️'
+    response: 'YES! IRV is welcoming new recruits. Head to our tickets channel to apply for the military! '
   },
   {
     triggers: ['what are the requirements', 'requirements to join'],
@@ -57,11 +57,11 @@ const AUTO_REPLIES = [
   },
   {
     triggers: ['what game do you play', 'what games'],
-    response: 'IRV primarily operates in Booga Booga SMP! Come join us on the battlefield. ⚔️'
+    response: 'IRV  operates in Booga Booga SMP, CAA (Command an Army) and The Survival Game! Come join us on the battlefield.'
   },
   {
     triggers: ['is irv active', 'are you active'],
-    response: 'Of course! IRV is continuously building its community. Stay tuned for announcements, activities, and events! 🔥'
+    response: 'Of course! IRV is continuously building its community. Stay tuned for announcements, activities, and events! '
   },
   {
     triggers: ['how do i contact staff', 'contact staff', 'need help'],
