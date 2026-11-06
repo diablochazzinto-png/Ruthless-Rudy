@@ -48,7 +48,7 @@ const AUTO_REPLIES = [
     response: "I'm Reaper Randy! 💀"
   },
   {
-    triggers: ['reaper', 'reaper randy'],
+    triggers: ['ruthless rudy', 'rudy'],
     response: 'You called? 💀'
   },
   {
@@ -62,19 +62,27 @@ const AUTO_REPLIES = [
 ];
 export default {
   name: Events.MessageCreate,
+
   async execute(message, client) {
     try {
       if (message.author.bot || !message.guild) return;
 
-      logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
+      logger.debug(
+        `Message received from ${message.author.tag}: ${message.content}`
+      );
 
       const countingProcessed = await handleCountingGame(message, client);
+
       if (countingProcessed) {
         return;
       }
-      await handleAutoReply(message)
+
+      await handleAutoReply(message);
+
       await handlePrefixCommand(message, client);
+
       await handleLeveling(message, client);
+
     } catch (error) {
       logger.error('Error in messageCreate event:', error);
     }
@@ -283,9 +291,12 @@ async function handleLeveling(message, client) {
         `${message.author.tag} leveled up to level ${result.level} in ${message.guild.name}`
       );
     }
-  } catch (error) {
+   } catch (error) {
     logger.error('Error handling leveling for message:', error);
   }
+}
+
+// AUTO-REPLY FUNCTION
 async function handleAutoReply(message) {
   try {
     const content = message.content.toLowerCase();
