@@ -50,27 +50,49 @@ const PUNISHMENTS = Object.freeze({
 // DATABASE RETRIEVAL
 // ==========================================
 
-export async function getStrikeData(client, guildId, userId) {
-    const key = STRIKE_KEY(guildId, userId);
 
-    try {
-        const data = await client.db.get(key, {
-            count: 0,
-            history: []
-        });
+// ==========================================
+// CLEAR ALL STRIKES
+// ==========================================
 
-        return {
-            count: Math.max(
-                0,
-                Math.min(
-                    MAX_STRIKES,
-                    Number.isInteger(data?.count) ? data.count : 0
-                )
-            ),
-            history: Array.isArray(data?.history)
-                ? data.history
-                : []
-        };
+export async function clearStrikes(
+    client,
+    guildId,
+    userId
+) {
+    // Retrieve existing strike records
+    const previousData = await getStrikeData(
+        client,
+        guildId,
+        userId
+    );
+
+    const previousCount = previousData.count;
+
+    // Reset strike count and history
+    const newData = {
+        count: 0,
+        history: []
+    };
+
+    await saveStrikeData(
+        client,
+        guildId,
+        userId,
+        newData
+    );
+
+    logger.info(
+        `All strikes cleared for user ${userId} in IRV ${guildId}. Previous strikes: ${previousCount}`
+    );
+
+    // Return information for confirmation embeds
+    return {
+        previousCount,
+        count: 0,
+        history: []
+    };
+}
 
     } catch (error) {
         logger.error('Failed to retrieve strike data:', error);
