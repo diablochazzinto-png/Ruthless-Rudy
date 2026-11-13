@@ -175,6 +175,7 @@ export async function checkAutomaticModeration(message, client) {
             reason
         );
 
+        console.log('[IRV MODERATION] Profanity detected:', containsProfanity(message.content));
         if (!result) return false;
 
         await message.delete().catch(error => {
