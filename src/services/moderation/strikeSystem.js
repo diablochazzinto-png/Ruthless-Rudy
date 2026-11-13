@@ -1,3 +1,4 @@
+
 import { logger } from '../../utils/logger.js';
 
 const STRIKE_KEY = (guildId, userId) =>
@@ -45,12 +46,28 @@ export async function issueStrike(client, member, reason, moderator = 'Ruthless 
 
     const data = await getStrikeData(client, guildId, userId);
 
-    if (data.count >= 7) {
-        return null;
-    }
+    if (data.count >= 7) return null;
 
     const strike = data.count + 1;
     const punishment = PUNISHMENTS[strike];
+
+    // Check whether the bot can apply the punishment first.
+    if (strike >= 2 && strike <= 6 && !member.moderatable) {
+        throw new Error(`Cannot timeout ${member.user.tag}. Check bot permissions and role hierarchy.`);
+    }
+
+    if (strike === 7 && !member.bannable) {
+        throw new Error(`Cannot ban ${member.user.tag}. Check bot permissions and role hierarchy.`);
+    }
+
+    // Apply punishment before saving the strike.
+    if (strike >= 2 && strike <= 6) {
+        await member.timeout(punishment.duration, reason);
+    }
+
+    if (strike === 7) {
+        await member.ban({ reason: `Strike 7: ${reason}` });
+    }
 
     data.count = strike;
     data.history.push({
@@ -63,13 +80,7 @@ export async function issueStrike(client, member, reason, moderator = 'Ruthless 
 
     await saveStrikeData(client, guildId, userId, data);
 
-    if (strike >= 2 && strike <= 6) {
-        await member.timeout(punishment.duration, reason);
-    }
-
-    if (strike === 7) {
-        await member.ban({ reason: `Strike 7: ${reason}` });
-    }
+    logger.info(`Strike ${strike} issued to ${member.user.tag}: ${reason}`);
 
     return {
         strike,
