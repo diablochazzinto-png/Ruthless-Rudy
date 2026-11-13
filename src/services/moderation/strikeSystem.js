@@ -16,84 +16,40 @@ const MAX_HISTORY = 100;
 // ==========================================
 
 const PUNISHMENTS = Object.freeze({
-    1: {
-        name: 'Official Warning',
-        duration: null
-    },
-    2: {
-        name: '1-minute timeout',
-        duration: 60 * 1000
-    },
-    3: {
-        name: '10-minute timeout',
-        duration: 10 * 60 * 1000
-    },
-    4: {
-        name: '1-hour timeout',
-        duration: 60 * 60 * 1000
-    },
-    5: {
-        name: '8-hour timeout',
-        duration: 8 * 60 * 60 * 1000
-    },
-    6: {
-        name: '24-hour timeout',
-        duration: 24 * 60 * 60 * 1000
-    },
-    7: {
-        name: 'Permanent Ban',
-        duration: null
-    }
+    1: { name: 'Official Warning', duration: null },
+    2: { name: '1-minute timeout', duration: 60 * 1000 },
+    3: { name: '10-minute timeout', duration: 10 * 60 * 1000 },
+    4: { name: '1-hour timeout', duration: 60 * 60 * 1000 },
+    5: { name: '8-hour timeout', duration: 8 * 60 * 60 * 1000 },
+    6: { name: '24-hour timeout', duration: 24 * 60 * 60 * 1000 },
+    7: { name: 'Permanent Ban', duration: null }
 });
 
 // ==========================================
 // DATABASE RETRIEVAL
 // ==========================================
 
+export async function getStrikeData(client, guildId, userId) {
+    if (!client?.db) {
+        throw new Error('Database is not initialized.');
+    }
 
-// ==========================================
-// CLEAR ALL STRIKES
-// ==========================================
+    const key = STRIKE_KEY(guildId, userId);
 
-export async function clearStrikes(
-    client,
-    guildId,
-    userId
-) {
-    // Retrieve existing strike records
-    const previousData = await getStrikeData(
-        client,
-        guildId,
-        userId
-    );
+    try {
+        const storedData = await client.db.get(key, {
+            count: 0,
+            history: []
+        });
 
-    const previousCount = previousData.count;
-
-    // Reset strike count and history
-    const newData = {
-        count: 0,
-        history: []
-    };
-
-    await saveStrikeData(
-        client,
-        guildId,
-        userId,
-        newData
-    );
-
-    logger.info(
-        `All strikes cleared for user ${userId} in IRV ${guildId}. Previous strikes: ${previousCount}`
-    );
-
-    // Return information for confirmation embeds
-    return {
-    previousCount: data.count,
-    count: 0,
-    history: []
-};
-}
-
+        return {
+            count: Number.isInteger(storedData?.count)
+                ? Math.max(0, Math.min(MAX_STRIKES, storedData.count))
+                : 0,
+            history: Array.isArray(storedData?.history)
+                ? storedData.history
+                : []
+        };
     } catch (error) {
         logger.error('Failed to retrieve strike data:', error);
         throw error;
@@ -104,18 +60,16 @@ export async function clearStrikes(
 // DATABASE SAVING
 // ==========================================
 
-export async function saveStrikeData(
-    client,
-    guildId,
-    userId,
-    data
-) {
+export async function saveStrikeData(client, guildId, userId, data) {
+    if (!client?.db) {
+        throw new Error('Database is not initialized.');
+    }
+
     const key = STRIKE_KEY(guildId, userId);
 
     try {
         await client.db.set(key, data);
         return true;
-
     } catch (error) {
         logger.error('Failed to save strike data:', error);
         throw error;
@@ -132,7 +86,7 @@ export async function issueStrike(
     reason,
     moderator = 'Automatic Moderation'
 ) {
-    if (!member || !member.guild || !member.id) {
+    if (!member?.guild || !member?.id) {
         throw new Error('Invalid member provided to issueStrike.');
     }
 
@@ -143,21 +97,17 @@ export async function issueStrike(
     const guildId = member.guild.id;
     const userId = member.id;
 
-    const data = await getStrikeData(
-        client,
-        guildId,
-        userId
-    );
+    const data = await getStrikeData(client, guildId, userId);
 
-    // MAXIMUM STRIKES REACHED
     if (data.count >= MAX_STRIKES) {
+        logger.info(`Maximum strikes already reached for ${member.user.tag}.`);
         return null;
     }
 
     const strike = data.count + 1;
     const punishment = PUNISHMENTS[strike];
 
-    // CHECK TIMEOUT PERMISSIONS
+    // Check timeout permissions
     if (strike >= 2 && strike <= 6) {
         if (!member.moderatable) {
             throw new Error(
@@ -166,7 +116,7 @@ export async function issueStrike(
         }
     }
 
-    // CHECK BAN PERMISSIONS
+    // Check ban permissions
     if (strike === 7) {
         if (!member.bannable) {
             throw new Error(
@@ -175,31 +125,18 @@ export async function issueStrike(
         }
     }
 
-    // APPLY PUNISHMENT
-    try {
-        if (strike >= 2 && strike <= 6) {
-            await member.timeout(
-                punishment.duration,
-                reason
-            );
-        }
-
-        if (strike === 7) {
-            await member.ban({
-                reason: `IRV Strike 7: ${reason}`
-            });
-        }
-
-    } catch (error) {
-        logger.error(
-            `Failed to apply strike ${strike} punishment to ${member.user.tag}:`,
-            error
-        );
-
-        throw error;
+    // Apply punishment
+    if (strike >= 2 && strike <= 6) {
+        await member.timeout(punishment.duration, reason);
     }
 
-    // UPDATE STRIKE DATA
+    if (strike === 7) {
+        await member.ban({
+            reason: `IRV Strike 7: ${reason}`
+        });
+    }
+
+    // Update strike record
     data.count = strike;
 
     data.history.push({
@@ -210,24 +147,16 @@ export async function issueStrike(
         date: new Date().toISOString()
     });
 
-    // KEEP HISTORY MANAGEABLE
     if (data.history.length > MAX_HISTORY) {
         data.history = data.history.slice(-MAX_HISTORY);
     }
 
-    // SAVE TO DATABASE
-    await saveStrikeData(
-        client,
-        guildId,
-        userId,
-        data
-    );
+    await saveStrikeData(client, guildId, userId, data);
 
     logger.info(
         `Strike ${strike} issued to ${member.user.tag}: ${reason}`
     );
 
-    // RETURN RESULT TO AUTOMODERATION
     return {
         strike,
         punishment: punishment.name,
@@ -240,33 +169,16 @@ export async function issueStrike(
 // SET STRIKE COUNT
 // ==========================================
 
-export async function changeStrikeCount(
-    client,
-    guildId,
-    userId,
-    amount
-) {
+export async function changeStrikeCount(client, guildId, userId, amount) {
     if (!Number.isInteger(amount)) {
         throw new Error('Strike amount must be an integer.');
     }
 
-    const data = await getStrikeData(
-        client,
-        guildId,
-        userId
-    );
+    const data = await getStrikeData(client, guildId, userId);
 
-    data.count = Math.max(
-        0,
-        Math.min(MAX_STRIKES, amount)
-    );
+    data.count = Math.max(0, Math.min(MAX_STRIKES, amount));
 
-    await saveStrikeData(
-        client,
-        guildId,
-        userId,
-        data
-    );
+    await saveStrikeData(client, guildId, userId, data);
 
     return data;
 }
@@ -275,33 +187,16 @@ export async function changeStrikeCount(
 // REDUCE STRIKES
 // ==========================================
 
-export async function reduceStrikes(
-    client,
-    guildId,
-    userId,
-    amount
-) {
+export async function reduceStrikes(client, guildId, userId, amount) {
     if (!Number.isInteger(amount) || amount < 0) {
         throw new Error('Reduction amount must be a non-negative integer.');
     }
 
-    const data = await getStrikeData(
-        client,
-        guildId,
-        userId
-    );
+    const data = await getStrikeData(client, guildId, userId);
 
-    data.count = Math.max(
-        0,
-        data.count - amount
-    );
+    data.count = Math.max(0, data.count - amount);
 
-    await saveStrikeData(
-        client,
-        guildId,
-        userId,
-        data
-    );
+    await saveStrikeData(client, guildId, userId, data);
 
     return data;
 }
@@ -310,24 +205,25 @@ export async function reduceStrikes(
 // CLEAR ALL STRIKES
 // ==========================================
 
-export async function clearStrikes(
-    client,
-    guildId,
-    userId
-) {
-    const data = {
+export async function clearStrikes(client, guildId, userId) {
+    const previousData = await getStrikeData(client, guildId, userId);
+
+    const newData = {
         count: 0,
         history: []
     };
 
-    await saveStrikeData(
-        client,
-        guildId,
-        userId,
-        data
+    await saveStrikeData(client, guildId, userId, newData);
+
+    logger.info(
+        `All strikes cleared for user ${userId} in guild ${guildId}. Previous strikes: ${previousData.count}`
     );
 
-    return data;
+    return {
+        previousCount: previousData.count,
+        count: 0,
+        history: []
+    };
 }
 
 // ==========================================
