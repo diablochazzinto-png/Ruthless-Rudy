@@ -114,6 +114,7 @@ logger.debug(
 
 const moderationProcessed = await checkAutomaticModeration(message, client);
 if (moderationProcessed) return;
+
       );
 
       const countingProcessed = await handleCountingGame(message, client);
