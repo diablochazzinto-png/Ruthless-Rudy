@@ -133,6 +133,8 @@ function containsSpam(message) {
 // ==========================================
 
 export async function checkAutomaticModeration(message, client) {
+    console.log('[IRV MODERATION] Message received:', message.content);
+
     if (
         !message.guild ||
         message.author.bot ||
