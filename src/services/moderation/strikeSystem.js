@@ -1,75 +1,185 @@
 
 import { logger } from '../../utils/logger.js';
 
+// ==========================================
+// IRV STRIKE SYSTEM CONFIGURATION
+// ==========================================
+
 const STRIKE_KEY = (guildId, userId) =>
     `guild:${guildId}:strikes:${userId}`;
 
-const PUNISHMENTS = {
-    1: { name: 'Official Warning', duration: null },
-    2: { name: '1-minute timeout', duration: 60 * 1000 },
-    3: { name: '10-minute timeout', duration: 10 * 60 * 1000 },
-    4: { name: '1-hour timeout', duration: 60 * 60 * 1000 },
-    5: { name: '8-hour timeout', duration: 8 * 60 * 60 * 1000 },
-    6: { name: '24-hour timeout', duration: 24 * 60 * 60 * 1000 },
-    7: { name: 'Permanent Ban', duration: null }
-};
+const MAX_STRIKES = 7;
+const MAX_HISTORY = 100;
+
+// ==========================================
+// PUNISHMENT PROGRESSION
+// ==========================================
+
+const PUNISHMENTS = Object.freeze({
+    1: {
+        name: 'Official Warning',
+        duration: null
+    },
+    2: {
+        name: '1-minute timeout',
+        duration: 60 * 1000
+    },
+    3: {
+        name: '10-minute timeout',
+        duration: 10 * 60 * 1000
+    },
+    4: {
+        name: '1-hour timeout',
+        duration: 60 * 60 * 1000
+    },
+    5: {
+        name: '8-hour timeout',
+        duration: 8 * 60 * 60 * 1000
+    },
+    6: {
+        name: '24-hour timeout',
+        duration: 24 * 60 * 60 * 1000
+    },
+    7: {
+        name: 'Permanent Ban',
+        duration: null
+    }
+});
+
+// ==========================================
+// DATABASE RETRIEVAL
+// ==========================================
 
 export async function getStrikeData(client, guildId, userId) {
     const key = STRIKE_KEY(guildId, userId);
 
     try {
-        return await client.db.get(key, {
+        const data = await client.db.get(key, {
             count: 0,
             history: []
         });
+
+        return {
+            count: Math.max(
+                0,
+                Math.min(
+                    MAX_STRIKES,
+                    Number.isInteger(data?.count) ? data.count : 0
+                )
+            ),
+            history: Array.isArray(data?.history)
+                ? data.history
+                : []
+        };
+
     } catch (error) {
         logger.error('Failed to retrieve strike data:', error);
         throw error;
     }
 }
 
-export async function saveStrikeData(client, guildId, userId, data) {
+// ==========================================
+// DATABASE SAVING
+// ==========================================
+
+export async function saveStrikeData(
+    client,
+    guildId,
+    userId,
+    data
+) {
     const key = STRIKE_KEY(guildId, userId);
 
     try {
         await client.db.set(key, data);
         return true;
+
     } catch (error) {
         logger.error('Failed to save strike data:', error);
         throw error;
     }
 }
 
-export async function issueStrike(client, member, reason, moderator = 'Ruthless Rudy') {
+// ==========================================
+// ISSUE STRIKE
+// ==========================================
+
+export async function issueStrike(
+    client,
+    member,
+    reason,
+    moderator = 'Automatic Moderation'
+) {
+    if (!member || !member.guild || !member.id) {
+        throw new Error('Invalid member provided to issueStrike.');
+    }
+
+    if (!reason || typeof reason !== 'string') {
+        throw new Error('A valid strike reason is required.');
+    }
+
     const guildId = member.guild.id;
     const userId = member.id;
 
-    const data = await getStrikeData(client, guildId, userId);
+    const data = await getStrikeData(
+        client,
+        guildId,
+        userId
+    );
 
-    if (data.count >= 7) return null;
+    // MAXIMUM STRIKES REACHED
+    if (data.count >= MAX_STRIKES) {
+        return null;
+    }
 
     const strike = data.count + 1;
     const punishment = PUNISHMENTS[strike];
 
-    // Check whether the bot can apply the punishment first.
-    if (strike >= 2 && strike <= 6 && !member.moderatable) {
-        throw new Error(`Cannot timeout ${member.user.tag}. Check bot permissions and role hierarchy.`);
-    }
-
-    if (strike === 7 && !member.bannable) {
-        throw new Error(`Cannot ban ${member.user.tag}. Check bot permissions and role hierarchy.`);
-    }
-
-    // Apply punishment before saving the strike.
+    // CHECK TIMEOUT PERMISSIONS
     if (strike >= 2 && strike <= 6) {
-        await member.timeout(punishment.duration, reason);
+        if (!member.moderatable) {
+            throw new Error(
+                `Cannot timeout ${member.user.tag}. Check bot permissions and role hierarchy.`
+            );
+        }
     }
 
+    // CHECK BAN PERMISSIONS
     if (strike === 7) {
-        await member.ban({ reason: `Strike 7: ${reason}` });
+        if (!member.bannable) {
+            throw new Error(
+                `Cannot ban ${member.user.tag}. Check bot permissions and role hierarchy.`
+            );
+        }
     }
 
+    // APPLY PUNISHMENT
+    try {
+        if (strike >= 2 && strike <= 6) {
+            await member.timeout(
+                punishment.duration,
+                reason
+            );
+        }
+
+        if (strike === 7) {
+            await member.ban({
+                reason: `IRV Strike 7: ${reason}`
+            });
+        }
+
+    } catch (error) {
+        logger.error(
+            `Failed to apply strike ${strike} punishment to ${member.user.tag}:`,
+            error
+        );
+
+        throw error;
+    }
+
+    // UPDATE STRIKE DATA
     data.count = strike;
+
     data.history.push({
         strike,
         reason,
@@ -78,10 +188,24 @@ export async function issueStrike(client, member, reason, moderator = 'Ruthless 
         date: new Date().toISOString()
     });
 
-    await saveStrikeData(client, guildId, userId, data);
+    // KEEP HISTORY MANAGEABLE
+    if (data.history.length > MAX_HISTORY) {
+        data.history = data.history.slice(-MAX_HISTORY);
+    }
 
-    logger.info(`Strike ${strike} issued to ${member.user.tag}: ${reason}`);
+    // SAVE TO DATABASE
+    await saveStrikeData(
+        client,
+        guildId,
+        userId,
+        data
+    );
 
+    logger.info(
+        `Strike ${strike} issued to ${member.user.tag}: ${reason}`
+    );
+
+    // RETURN RESULT TO AUTOMODERATION
     return {
         strike,
         punishment: punishment.name,
@@ -90,32 +214,102 @@ export async function issueStrike(client, member, reason, moderator = 'Ruthless 
     };
 }
 
-export async function changeStrikeCount(client, guildId, userId, amount) {
-    const data = await getStrikeData(client, guildId, userId);
+// ==========================================
+// SET STRIKE COUNT
+// ==========================================
 
-    data.count = Math.max(0, Math.min(7, amount));
+export async function changeStrikeCount(
+    client,
+    guildId,
+    userId,
+    amount
+) {
+    if (!Number.isInteger(amount)) {
+        throw new Error('Strike amount must be an integer.');
+    }
 
-    await saveStrikeData(client, guildId, userId, data);
+    const data = await getStrikeData(
+        client,
+        guildId,
+        userId
+    );
+
+    data.count = Math.max(
+        0,
+        Math.min(MAX_STRIKES, amount)
+    );
+
+    await saveStrikeData(
+        client,
+        guildId,
+        userId,
+        data
+    );
+
     return data;
 }
 
-export async function reduceStrikes(client, guildId, userId, amount) {
-    const data = await getStrikeData(client, guildId, userId);
+// ==========================================
+// REDUCE STRIKES
+// ==========================================
 
-    data.count = Math.max(0, data.count - amount);
+export async function reduceStrikes(
+    client,
+    guildId,
+    userId,
+    amount
+) {
+    if (!Number.isInteger(amount) || amount < 0) {
+        throw new Error('Reduction amount must be a non-negative integer.');
+    }
 
-    await saveStrikeData(client, guildId, userId, data);
+    const data = await getStrikeData(
+        client,
+        guildId,
+        userId
+    );
+
+    data.count = Math.max(
+        0,
+        data.count - amount
+    );
+
+    await saveStrikeData(
+        client,
+        guildId,
+        userId,
+        data
+    );
+
     return data;
 }
 
-export async function clearStrikes(client, guildId, userId) {
-    const data = await getStrikeData(client, guildId, userId);
+// ==========================================
+// CLEAR ALL STRIKES
+// ==========================================
 
-    data.count = 0;
-    data.history = [];
+export async function clearStrikes(
+    client,
+    guildId,
+    userId
+) {
+    const data = {
+        count: 0,
+        history: []
+    };
 
-    await saveStrikeData(client, guildId, userId, data);
+    await saveStrikeData(
+        client,
+        guildId,
+        userId,
+        data
+    );
+
     return data;
 }
+
+// ==========================================
+// EXPORT PUNISHMENT CONFIGURATION
+// ==========================================
 
 export { PUNISHMENTS };
