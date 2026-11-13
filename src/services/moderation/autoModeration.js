@@ -5,9 +5,134 @@ const SPAM_LIMIT = 5;
 const SPAM_WINDOW = 5000;
 const recentMessages = new Map();
 
+
 const PROFANITY = [
-    // Add your prohibited words here.
+    // GENERAL PROFANITY
+    'fuck',
+    'fucking',
+    'fucked',
+    'fucker',
+    'fuckers',
+    'motherfucker',
+    'motherfuckers',
+    'motherfucking',
+    'mothafucka',
+    'muthafucker',
+    'muthafucka',
+    'mofo',
+    'shit',
+    'shitty',
+    'bullshit',
+    'shithead',
+    'dipshit',
+    'dumbshit',
+    'bitch',
+    'bitches',
+    'bitching',
+    'bastard',
+    'bastards',
+    'asshole',
+    'assholes',
+    'arsehole',
+    'dick',
+    'dicks',
+    'dickhead',
+    'cock',
+    'cocks',
+    'pussy',
+    'pussies',
+    'cunt',
+    'cunts',
+    'twat',
+    'prick',
+    'wanker',
+    'whore',
+    'whores',
+    'slut',
+    'sluts',
+    'douche',
+    'douchebag',
+    'jackass',
+    'dumbass',
+    'asswipe',
+    'piss',
+    'pissed',
+    'crap',
+    'damn',
+    'hell',
+
+    // COMMON ALTERNATIVE SPELLINGS
+    'fuk',
+    'fuking',
+    'fuker',
+    'fck',
+    'fuq',
+    'phuck',
+    'shyt',
+    'biatch',
+    'btch',
+    'bich',
+    'azzhole',
+    'a55hole',
+    'dik',
+    'd1ck',
+    'kunt',
+    'cnt',
+    'mthrfkr',
+    'mofucka',
+    'bullshyt',
+    'dipshyt',
+    'dumbazz',
+    'jackazz',
+
+    // RACIAL SLURS
+    // Add the exact prohibited terms to your private list.
+    // The normalization system below handles common
+    // punctuation, spacing and number substitutions.
 ];
+
+function normalizeText(text) {
+    return text
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/0/g, 'o')
+        .replace(/1/g, 'i')
+        .replace(/3/g, 'e')
+        .replace(/4/g, 'a')
+        .replace(/5/g, 's')
+        .replace(/7/g, 't')
+        .replace(/@/g, 'a')
+        .replace(/\$/g, 's')
+        .replace(/!/g, 'i')
+        .replace(/\+/g, 't');
+}
+
+function createProfanityPattern(word) {
+    const normalized = normalizeText(word)
+        .replace(/[^a-z]/g, '');
+
+    const letters = [...normalized];
+
+    const pattern = letters
+        .map(letter => `${letter}+`)
+        .join('[^a-z0-9]*');
+
+    return new RegExp(
+        `(^|[^a-z0-9])${pattern}($|[^a-z0-9])`,
+        'i'
+    );
+}
+
+function containsProfanity(content) {
+    const normalized = normalizeText(content);
+
+    return PROFANITY.some(word => {
+        const pattern = createProfanityPattern(word);
+        return pattern.test(normalized);
+    });
+}
+
 
 export async function checkAutomaticModeration(message, client) {
     if (!message.guild || message.author.bot || !message.member) return false;
