@@ -146,8 +146,12 @@ export async function checkAutomaticModeration(message, client) {
         member.permissions.has(PermissionsBitField.Flags.ModerateMembers)
     ) return;
 
-    const content = message.content.toLowerCase();
-    let reason = null;
+  const hasProfanity = containsProfanity(message.content);
+
+if (hasProfanity) {
+    // Keep your existing strike, message deletion,
+    // and moderation notification code here.
+}
 
     // Detect repeated messages / flooding.
     const key = `${message.guild.id}:${message.author.id}`;
