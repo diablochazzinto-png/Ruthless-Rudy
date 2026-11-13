@@ -1,214 +1,400 @@
-// prefixParser.js
 
 import { resolveSubcommandAlias } from '../config/commands/commandAliases.js';
 import { logger } from './logger.js';
 
-export function parsePrefixCommand(content, prefix) {
-  if (!content || !content.startsWith(prefix)) {
-    return null;
-  }
+/**
+ * Convert command data into a regular JSON object.
+ */
+function getCommandData(commandData) {
+    if (!commandData) return null;
 
-  const withoutPrefix = content.slice(prefix.length).trim();
-  
-  if (!withoutPrefix) {
-    return null;
-  }
-
-  const args = parseArguments(withoutPrefix);
-  
-  if (args.length === 0) {
-    return null;
-  }
-
-  const commandName = args[0].toLowerCase();
-  const commandArgs = args.slice(1);
-
-  return {
-    commandName,
-    args: commandArgs
-  };
+    try {
+        return typeof commandData.toJSON === 'function'
+            ? commandData.toJSON()
+            : commandData;
+    } catch (error) {
+        logger.error('Failed to read command data:', error);
+        return null;
+    }
 }
 
+/**
+ * Parse quoted and unquoted command arguments.
+ *
+ * Example:
+ * !warn @user "Repeated spam"
+ *
+ * Result:
+ * ["warn", "@user", "Repeated spam"]
+ */
 function parseArguments(input) {
-  const args = [];
-  let current = '';
-  let inQuote = false;
-  let quoteChar = '';
+    const args = [];
 
-  for (let i = 0; i < input.length; i++) {
-    const char = input[i];
+    let current = '';
+    let quoteChar = null;
+    let escaped = false;
 
-    if (inQuote) {
-      if (char === quoteChar) {
-        
-        inQuote = false;
-        args.push(current);
-        current = '';
-      } else {
-        current += char;
-      }
-    } else {
-      if (char === '"' || char === "'") {
-        
-        if (current.trim()) {
-          args.push(current.trim());
-          current = '';
+    for (const char of input) {
+        if (escaped) {
+            current += char;
+            escaped = false;
+            continue;
         }
-        inQuote = true;
-        quoteChar = char;
-      } else if (char === ' ') {
-        
-        if (current.trim()) {
-          args.push(current.trim());
-          current = '';
+
+        if (char === '\\') {
+            escaped = true;
+            continue;
         }
-      } else {
+
+        if (quoteChar) {
+            if (char === quoteChar) {
+                quoteChar = null;
+            } else {
+                current += char;
+            }
+
+            continue;
+        }
+
+        if (char === '"' || char === "'") {
+            quoteChar = char;
+            continue;
+        }
+
+        if (/\s/.test(char)) {
+            if (current.length > 0) {
+                args.push(current);
+                current = '';
+            }
+
+            continue;
+        }
+
         current += char;
-      }
     }
-  }
 
-  if (current.trim()) {
-    args.push(current.trim());
-  }
+    if (escaped) {
+        current += '\\';
+    }
 
-  return args;
+    if (current.length > 0) {
+        args.push(current);
+    }
+
+    return args;
 }
 
-export function mapArgumentsToOptions(args, commandData) {
-  const options = {};
-  let subcommandName = null;
-  let subcommandGroupName = null;
+/**
+ * Parse a prefix command.
+ */
+export function parsePrefixCommand(content, prefix) {
+    if (
+        typeof content !== 'string' ||
+        typeof prefix !== 'string' ||
+        !prefix ||
+        !content.startsWith(prefix)
+    ) {
+        return null;
+    }
 
-  const cmdData = commandData.toJSON ? commandData.toJSON() : commandData;
-  
-  if (!cmdData || !cmdData.options) {
-    
+    const withoutPrefix = content
+        .slice(prefix.length)
+        .trim();
+
+    if (!withoutPrefix) return null;
+
+    const args = parseArguments(withoutPrefix);
+
+    if (args.length === 0) return null;
+
+    const commandName = args.shift().toLowerCase();
+
+    if (!commandName) return null;
+
     return {
-      _positional: args,
-      get: (name) => args[0] || null,
-      getString: (name) => args[0] || null,
-      getUser: (name) => null,
-      getInteger: (name) => parseInt(args[0]) || null,
-      getBoolean: (name) => args[0] === 'true',
-      getSubcommand: () => null,
-      getSubcommandGroup: () => null,
-      validateRequired: () => ({ valid: true, missing: [] })
+        commandName,
+        args
     };
-  }
+}
 
-  const subcommandGroup = cmdData.options.find((opt) => opt.type === 2);
-  const subcommands = cmdData.options.filter((opt) => opt.type === 1);
-  const hasSubcommands = subcommands.length > 0 && !subcommandGroup;
+/**
+ * Normalize a Discord mention or ID.
+ */
+function normalizeId(value) {
+    if (typeof value !== 'string') return value;
 
-  let currentArgs = args;
-  let optionDefs = [];
+    const mentionMatch = value.match(
+        /^<@!?(\d+)>$|^<#(\d+)>$|^<@&(\d+)>$/
+    );
 
-  logger.debug(
-    `Parsing prefix command: commandName=${cmdData.name}, args=${JSON.stringify(args)}, hasSubcommands=${hasSubcommands}, hasSubcommandGroup=${!!subcommandGroup}, optionsCount=${cmdData.options.length}`,
-  );
+    if (mentionMatch) {
+        return mentionMatch[1] || mentionMatch[2] || mentionMatch[3];
+    }
 
-  if (subcommandGroup) {
-    if (args.length > 0) {
-      subcommandGroupName = args[0].toLowerCase();
-      const group = subcommandGroup.options?.find((g) => g.name === subcommandGroupName);
-      if (group && args.length > 1) {
-        subcommandName = resolveSubcommandAlias(args[1]);
-        const sub = group.options?.find((s) => s.name === subcommandName);
-        if (sub) {
-          optionDefs = sub.options?.filter((opt) => opt.type !== 1 && opt.type !== 2) || [];
-          currentArgs = args.slice(2);
-        } else {
-          logger.debug(`Subcommand ${subcommandName} not found in group ${subcommandGroupName}`);
+    return value;
+}
+
+/**
+ * Find a subcommand alias safely.
+ */
+function findSubcommand(name, subcommands) {
+    if (!name || !Array.isArray(subcommands)) return null;
+
+    const resolved = resolveSubcommandAlias(name);
+
+    return subcommands.find(
+        subcommand => subcommand.name === resolved
+    ) || null;
+}
+
+/**
+ * Map prefix arguments to command options.
+ */
+export function mapArgumentsToOptions(args = [], commandData = null) {
+    const safeArgs = Array.isArray(args)
+        ? args.map(arg => String(arg))
+        : [];
+
+    const cmdData = getCommandData(commandData);
+
+    const options = {};
+    let subcommandName = null;
+    let subcommandGroupName = null;
+    let optionDefs = [];
+
+    if (!cmdData || !Array.isArray(cmdData.options)) {
+        return createOptionsResult(
+            options,
+            safeArgs,
+            null,
+            null,
+            [],
+            []
+        );
+    }
+
+    const commandOptions = cmdData.options;
+
+    const subcommandGroup = commandOptions.find(
+        option => option.type === 2
+    );
+
+    const subcommands = commandOptions.filter(
+        option => option.type === 1
+    );
+
+    const hasSubcommands =
+        subcommands.length > 0 && !subcommandGroup;
+
+    let currentArgs = [...safeArgs];
+
+    logger.debug(
+        `Parsing prefix command: ${cmdData.name}, args=${JSON.stringify(safeArgs)}`
+    );
+
+    /**
+     * Subcommand groups.
+     */
+    if (subcommandGroup) {
+        const groupInput = currentArgs[0]?.toLowerCase();
+
+        const group = subcommandGroup.options?.find(
+            item => item.name === groupInput
+        );
+
+        if (group) {
+            subcommandGroupName = group.name;
+            currentArgs = currentArgs.slice(1);
+
+            const sub = findSubcommand(
+                currentArgs[0],
+                group.options
+            );
+
+            if (sub) {
+                subcommandName = sub.name;
+                currentArgs = currentArgs.slice(1);
+
+                optionDefs = (sub.options || []).filter(
+                    option => option.type !== 1 && option.type !== 2
+                );
+            }
         }
-      } else if (!group) {
-        logger.debug(`Subcommand group ${subcommandGroupName} not found`);
-      }
     }
-  } else if (hasSubcommands) {
-    if (args.length > 0) {
-      const resolvedSubcommand = resolveSubcommandAlias(args[0]);
-      logger.debug(
-        `Looking for subcommand: ${resolvedSubcommand}, available: ${subcommands.map((s) => s.name).join(', ')}`,
-      );
-      const sub = subcommands.find((s) => s.name === resolvedSubcommand);
-      if (sub) {
-        subcommandName = resolvedSubcommand;
-        optionDefs = sub.options?.filter((opt) => opt.type !== 1 && opt.type !== 2) || [];
-        currentArgs = args.slice(1);
-        logger.debug(`Found subcommand ${subcommandName}, optionDefs: ${optionDefs.length}`);
-      } else {
-        logger.debug(`Subcommand ${resolvedSubcommand} not found`);
-      }
+
+    /**
+     * Regular subcommands.
+     */
+    else if (hasSubcommands) {
+        const sub = findSubcommand(
+            currentArgs[0],
+            subcommands
+        );
+
+        if (sub) {
+            subcommandName = sub.name;
+            currentArgs = currentArgs.slice(1);
+
+            optionDefs = (sub.options || []).filter(
+                option => option.type !== 1 && option.type !== 2
+            );
+        }
     }
-  } else {
-    optionDefs = cmdData.options.filter((opt) => opt.type !== 1 && opt.type !== 2);
-  }
 
-  for (let i = 0; i < Math.min(currentArgs.length, optionDefs.length); i++) {
-    const optionDef = optionDefs[i];
-    const value = currentArgs[i];
-    
-    options[optionDef.name] = value;
-  }
+    /**
+     * Normal command options.
+     */
+    else {
+        optionDefs = commandOptions.filter(
+            option => option.type !== 1 && option.type !== 2
+        );
+    }
 
-  const missing = [];
-  if (subcommandName || (!hasSubcommands && !subcommandGroup)) {
-    for (const opt of optionDefs) {
-      if (opt.required && !options[opt.name]) {
+    /**
+     * Map arguments to option definitions.
+     */
+    for (
+        let index = 0;
+        index < Math.min(currentArgs.length, optionDefs.length);
+        index++
+    ) {
+        const definition = optionDefs[index];
+
+        options[definition.name] = normalizeId(
+            currentArgs[index]
+        );
+    }
+
+    /**
+     * Check required options.
+     */
+    const missing = [];
+
+    const shouldValidate =
+        Boolean(subcommandName) ||
+        (!hasSubcommands && !subcommandGroup);
+
+    if (shouldValidate) {
+        for (const option of optionDefs) {
+            const value = options[option.name];
+
+            if (
+                option.required &&
+                (value === undefined || value === null || value === '')
+            ) {
+                missing.push({
+                    name: option.name,
+                    description: option.description,
+                    type: option.type
+                });
+            }
+        }
+    }
+
+    /**
+     * Check missing subcommands.
+     */
+    if (hasSubcommands && !subcommandName) {
         missing.push({
-          name: opt.name,
-          description: opt.description,
-          type: opt.type,
+            name: 'subcommand',
+            description: `Available: ${subcommands.map(item => item.name).join(', ')}`,
+            type: 1
         });
-      }
     }
-  }
 
-  if ((hasSubcommands || subcommandGroup) && !subcommandName && !subcommandGroupName) {
-    const availableSubcommands = hasSubcommands
-      ? subcommands.map((s) => s.name).join(',') || 'none'
-      : subcommandGroup?.options?.map((g) => g.name).join(',') || 'none';
-    missing.push({
-      name: subcommandGroup ? 'subcommand group' : 'subcommand',
-      description: `Available: ${availableSubcommands}`,
-      type: 1,
-    });
-  } else if (hasSubcommands && args.length > 0 && !subcommandName) {
-    missing.push({
-      name: 'subcommand',
-      description: `Available: ${subcommands.map((s) => s.name).join(', ')}`,
-      type: 1,
-    });
-  } else if (subcommandGroup && subcommandGroupName && !subcommandName) {
-    const group = subcommandGroup.options?.find((g) => g.name === subcommandGroupName);
-    const availableSubcommands = group?.options?.map((s) => s.name).join(',') || 'none';
-    missing.push({
-      name: 'subcommand',
-      description: `Available: ${availableSubcommands}`,
-      type: 1,
-    });
-  }
+    if (subcommandGroup && !subcommandGroupName) {
+        missing.push({
+            name: 'subcommand group',
+            description: `Available: ${subcommandGroup.options?.map(item => item.name).join(', ') || 'none'}`,
+            type: 2
+        });
+    } else if (subcommandGroup && subcommandGroupName && !subcommandName) {
+        const group = subcommandGroup.options?.find(
+            item => item.name === subcommandGroupName
+        );
 
-  return {
-    ...options,
-    _positional: args,
-    get: (name) => options[name] || null,
-    getString: (name) => options[name] || null,
-    getUser: (name) => options[name] || null,
-    getMember: (name) => options[name] || null,
-    getChannel: (name) => options[name] || null,
-    getRole: (name) => options[name] || null,
-    getInteger: (name) => options[name] ? parseInt(options[name]) : null,
-    getBoolean: (name) => options[name] === 'true',
-    getSubcommand: () => subcommandName,
-    getSubcommandGroup: () => subcommandGroupName,
-    validateRequired: () => ({
-      valid: missing.length === 0,
-      missing,
-      subcommandName,
-      subcommandGroupName,
-      optionDefs
-    })
-  };
+        missing.push({
+            name: 'subcommand',
+            description: `Available: ${group?.options?.map(item => item.name).join(', ') || 'none'}`,
+            type: 1
+        });
+    }
+
+    logger.debug(
+        `Finished parsing ${cmdData.name}: ${JSON.stringify(options)}`
+    );
+
+    return createOptionsResult(
+        options,
+        safeArgs,
+        subcommandName,
+        subcommandGroupName,
+        optionDefs,
+        missing
+    );
+}
+
+/**
+ * Create the options interface used by the command adapter.
+ */
+function createOptionsResult(
+    options,
+    positional,
+    subcommandName,
+    subcommandGroupName,
+    optionDefs,
+    missing
+) {
+    const getValue = name => options[name] ?? null;
+
+    return {
+        ...options,
+
+        _positional: positional,
+
+        get: getValue,
+
+        getString: name => {
+            const value = getValue(name);
+            return value === null ? null : String(value);
+        },
+
+        getUser: name => getValue(name),
+
+        getMember: name => getValue(name),
+
+        getChannel: name => getValue(name),
+
+        getRole: name => getValue(name),
+
+        getInteger: name => {
+            const value = getValue(name);
+
+            if (value === null) return null;
+
+            const parsed = Number.parseInt(value, 10);
+
+            return Number.isNaN(parsed) ? null : parsed;
+        },
+
+        getBoolean: name => {
+            const value = getValue(name);
+
+            if (value === null) return null;
+
+            return value === true || value === 'true';
+        },
+
+        getSubcommand: () => subcommandName,
+
+        getSubcommandGroup: () => subcommandGroupName,
+
+        validateRequired: () => ({
+            valid: missing.length === 0,
+            missing,
+            subcommandName,
+            subcommandGroupName,
+            optionDefs
+        })
+    };
 }
