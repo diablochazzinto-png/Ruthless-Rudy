@@ -45,7 +45,7 @@ export async function checkAutomaticModeration(message, client) {
         reason = 'Prohibited language';
     }
 
-    if (!reason) return;
+if (!reason) return false;
 
     try {
         const result = await issueStrike(client, member, reason);
@@ -76,6 +76,7 @@ export async function checkAutomaticModeration(message, client) {
             notice.delete().catch(() => {});
         }, 5000);
 
+        return true;
     } catch (error) {
         console.error('Automatic moderation error:', error);
     }
