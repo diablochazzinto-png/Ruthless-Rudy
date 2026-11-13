@@ -108,9 +108,11 @@ export default {
     try {
       if (message.author.bot || !message.guild) return;
 
-      logger.debug(
-        `Message received from ${message.author.tag}: ${message.content}`
-        const moderationProcessed = await checkAutomaticModeration(message, client);
+logger.debug(
+  `Message received from ${message.author.tag}: ${message.content}`
+);
+
+const moderationProcessed = await checkAutomaticModeration(message, client);
 if (moderationProcessed) return;
       );
 
