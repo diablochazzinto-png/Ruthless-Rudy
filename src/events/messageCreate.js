@@ -1,3 +1,4 @@
+import { checkAutomaticModeration } from '../services/moderation/autoModeration.js';
 import { Events } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { getLevelingConfig, getUserLevelData } from '../services/leveling/leveling.js';
