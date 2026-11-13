@@ -1,49 +1,94 @@
 
 import {
     EmbedBuilder,
-    PermissionsBitField
+    PermissionsBitField,
+    ApplicationCommandOptionType
 } from 'discord.js';
 
-import { clearStrikes } from '../services/moderation/strikeSystem.js';
+import {
+    clearStrikes
+} from '../services/moderation/strikeSystem.js';
 
 export default {
     name: 'clear-strikes',
-    aliases: ['clearstrikes', 'reset-strikes'],
+
+    data: {
+        name: 'clear-strikes',
+        description: 'Clear all strikes from a member.',
+        options: [
+            {
+                name: 'member',
+                description: 'The member whose strikes you want to clear.',
+                type: ApplicationCommandOptionType.User,
+                required: true
+            }
+        ]
+    },
+
+    legacyPrefix: true,
+
+    aliases: [
+        'clearstrikes',
+        'reset-strikes'
+    ],
+
     description: 'Clear all strikes from a member.',
+
     usage: 'clear-strikes @member',
 
     async execute(message, args, client) {
         try {
-            // Check permissions
+            if (!message.guild || !message.member) {
+                return message.reply('This command can only be used in a server.');
+            }
+
             if (!message.member.permissions.has(
                 PermissionsBitField.Flags.ManageGuild
             )) {
                 return message.reply({
                     content: 'You need **Manage Server** permission to use this command.',
-                    allowedMentions: { repliedUser: false }
+                    allowedMentions: {
+                        repliedUser: false
+                    }
                 });
             }
 
-            // Find target member
-            const target =
-                message.mentions.members.first() ||
-                await message.guild.members.fetch(args[0]).catch(() => null);
+            const input = args?.[0];
+
+            if (!input) {
+                return message.reply({
+                    content: 'Please mention a member or provide their user ID.\nExample: `!clear-strikes @member`',
+                    allowedMentions: {
+                        repliedUser: false
+                    }
+                });
+            }
+
+            const mentionMatch = input.match(/^<@!?(\d+)>$/);
+            const userId = mentionMatch ? mentionMatch[1] : input;
+
+            const target = await message.guild.members
+                .fetch(userId)
+                .catch(() => null);
 
             if (!target) {
                 return message.reply({
-                    content: 'Please mention a member or provide their user ID.\nExample: `!clear-strikes @member`',
-                    allowedMentions: { repliedUser: false }
+                    content: 'I could not find that member.',
+                    allowedMentions: {
+                        repliedUser: false
+                    }
                 });
             }
 
             if (target.user.bot) {
                 return message.reply({
                     content: 'You cannot clear strikes for a bot.',
-                    allowedMentions: { repliedUser: false }
+                    allowedMentions: {
+                        repliedUser: false
+                    }
                 });
             }
 
-            // Clear strikes
             const result = await clearStrikes(
                 client,
                 message.guild.id,
@@ -51,10 +96,9 @@ export default {
             );
 
             if (!result) {
-                throw new Error('The strike system returned no result.');
+                throw new Error('Strike system returned no result.');
             }
 
-            // Create confirmation embed
             const embed = new EmbedBuilder()
                 .setColor(0x8B0000)
                 .setTitle('STRIKES CLEARED')
@@ -96,9 +140,11 @@ export default {
                 })
                 .setTimestamp();
 
-            return await message.reply({
+            return message.reply({
                 embeds: [embed],
-                allowedMentions: { repliedUser: false }
+                allowedMentions: {
+                    repliedUser: false
+                }
             });
 
         } catch (error) {
@@ -106,7 +152,9 @@ export default {
 
             return message.reply({
                 content: 'Failed to clear strikes. Check the bot console for the exact error.',
-                allowedMentions: { repliedUser: false }
+                allowedMentions: {
+                    repliedUser: false
+                }
             });
         }
     }
