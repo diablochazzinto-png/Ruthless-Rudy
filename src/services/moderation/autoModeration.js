@@ -10,7 +10,7 @@ const PROFANITY = [
 ];
 
 export async function checkAutomaticModeration(message, client) {
-    if (!message.guild || message.author.bot || !message.member) return;
+    if (!message.guild || message.author.bot || !message.member) return false;
 
     const member = message.member;
 
@@ -50,7 +50,7 @@ if (!reason) return false;
     try {
         const result = await issueStrike(client, member, reason);
 
-        if (!result) return;
+        if (!result) return false;
 
         await message.delete().catch(() => {});
 
