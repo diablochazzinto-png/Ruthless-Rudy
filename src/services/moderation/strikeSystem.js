@@ -88,10 +88,10 @@ export async function clearStrikes(
 
     // Return information for confirmation embeds
     return {
-        previousCount,
-        count: 0,
-        history: []
-    };
+    previousCount: data.count,
+    count: 0,
+    history: []
+};
 }
 
     } catch (error) {
