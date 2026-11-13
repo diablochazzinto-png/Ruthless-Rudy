@@ -6,6 +6,10 @@ import {
 
 import { issueStrike } from './strikeSystem.js';
 
+// ==========================================
+// CONFIGURATION
+// ==========================================
+
 const SPAM_LIMIT = 5;
 const SPAM_WINDOW = 5000;
 const NOTICE_DURATION = 5000;
@@ -44,11 +48,10 @@ const PROFANITY = [
     'azz', 'sh1t'
 ];
 
-// Add your own prohibited terms here.
 const CUSTOM_BLOCKED_TERMS = [];
 
 // ==========================================
-// NORMALIZATION
+// TEXT NORMALIZATION
 // ==========================================
 
 function normalizeText(text) {
@@ -73,11 +76,12 @@ function normalizeText(text) {
 }
 
 // ==========================================
-// PROFANITY DETECTION
+// PROFANITY PATTERNS
 // ==========================================
 
 function createPattern(word) {
-    const letters = normalizeText(word).replace(/[^a-z0-9]/g, '');
+    const letters = normalizeText(word)
+        .replace(/[^a-z0-9]/g, '');
 
     if (!letters) return null;
 
@@ -133,7 +137,11 @@ function containsSpam(message) {
 // ==========================================
 
 export async function checkAutomaticModeration(message, client) {
-    console.log('[IRV MODERATION] Message received:', message.content);
+
+    console.log(
+        '[IRV MODERATION] Message received:',
+        message.content
+    );
 
     if (
         !message.guild ||
@@ -145,8 +153,7 @@ export async function checkAutomaticModeration(message, client) {
 
     const member = message.member;
 
-    // Only administrators and members with moderation
-    // permissions are exempt from automatic moderation.
+    // MODERATOR EXEMPTIONS
     if (
         member.permissions.has(
             PermissionsBitField.Flags.Administrator
@@ -155,35 +162,71 @@ export async function checkAutomaticModeration(message, client) {
             PermissionsBitField.Flags.ModerateMembers
         )
     ) {
+        console.log('[IRV MODERATION] Moderator exemption:', member.user.tag);
         return false;
     }
 
+    // CHECK PROFANITY
+    const hasProfanity = containsProfanity(message.content);
+
+    console.log(
+        '[IRV MODERATION] Profanity detected:',
+        hasProfanity
+    );
+
+    // CHECK SPAM
+    const hasSpam = containsSpam(message);
+
+    console.log(
+        '[IRV MODERATION] Spam detected:',
+        hasSpam
+    );
+
     let reason = null;
 
-    if (containsSpam(message)) {
+    if (hasSpam) {
         reason = 'Repeated messages / flooding';
-    } else if (containsProfanity(message.content)) {
+    } else if (hasProfanity) {
         reason = 'Prohibited language';
     }
 
-    if (!reason) return false;
+    if (!reason) {
+        return false;
+    }
 
     try {
+        // ISSUE STRIKE
         const result = await issueStrike(
             client,
             member,
             reason
         );
 
-        console.log('[IRV MODERATION] Profanity detected:', containsProfanity(message.content));
-        if (!result) return false;
-
+        // DELETE THE OFFENDING MESSAGE
         await message.delete().catch(error => {
-            console.error('Message deletion failed:', error);
+            console.error(
+                '[IRV MODERATION] Message deletion failed:',
+                error
+            );
         });
 
+        // HANDLE FAILED STRIKE
+        if (!result) {
+            console.error(
+                '[IRV MODERATION] No strike was issued for:',
+                member.user.tag
+            );
+
+            return true;
+        }
+
+        // CREATE STRIKE EMBED
         const embed = new EmbedBuilder()
-            .setColor(result.strike >= 5 ? 0xC0392B : 0xE0A526)
+            .setColor(
+                result.strike >= 5
+                    ? 0xC0392B
+                    : 0xE0A526
+            )
             .setTitle(`⚠️ STRIKE ${result.strike}`)
             .setDescription(
                 `**Member:** ${member}\n` +
@@ -196,6 +239,7 @@ export async function checkAutomaticModeration(message, client) {
             })
             .setTimestamp();
 
+        // SEND MODERATION NOTICE
         const notice = await message.channel.send({
             content: `${member}`,
             embeds: [embed],
@@ -204,14 +248,23 @@ export async function checkAutomaticModeration(message, client) {
             }
         });
 
+        // DELETE NOTICE AFTER 5 SECONDS
         setTimeout(() => {
             notice.delete().catch(() => {});
         }, NOTICE_DURATION);
 
+        console.log(
+            `[IRV MODERATION] Successfully issued strike ${result.strike} to ${member.user.tag}`
+        );
+
         return true;
 
     } catch (error) {
-        console.error('Automatic moderation error:', error);
+        console.error(
+            '[IRV MODERATION] Automatic moderation error:',
+            error
+        );
+
         return false;
     }
 }
