@@ -1,3 +1,4 @@
+
 import { checkAutomaticModeration } from '../services/moderation/autoModeration.js';
 import { Events } from 'discord.js';
 import { logger } from '../utils/logger.js';
@@ -22,9 +23,9 @@ import {
 
 const MESSAGE_XP_RATE_LIMIT_ATTEMPTS = 12;
 const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
+
 // ==========================================
 // TITANBOT AUTO-REPLY SYSTEM
-// Add as many triggers and replies as you want.
 // ==========================================
 
 const AUTO_REPLIES = [
@@ -46,7 +47,7 @@ const AUTO_REPLIES = [
   },
   {
     triggers: ['recruitment', 'recruiting', 'are you recruiting'],
-    response: 'YES! IRV is welcoming new recruits. Head to our tickets channel to apply for the military! '
+    response: 'YES! IRV is welcoming new recruits. Head to our tickets channel to apply for the military!'
   },
   {
     triggers: ['what are the requirements', 'requirements to join'],
@@ -58,11 +59,11 @@ const AUTO_REPLIES = [
   },
   {
     triggers: ['what game do you play', 'what games'],
-    response: 'IRV  operates in Booga Booga SMP, CAA (Command an Army) and The Survival Game! Come join us on the battlefield.'
+    response: 'IRV operates in Booga Booga SMP, CAA (Command an Army) and The Survival Game! Come join us on the battlefield.'
   },
   {
     triggers: ['is irv active', 'are you active'],
-    response: 'Of course! IRV is continuously building its community. Stay tuned for announcements, activities, and events! '
+    response: 'Of course! IRV is continuously building its community. Stay tuned for announcements, activities, and events!'
   },
   {
     triggers: ['how do i contact staff', 'contact staff', 'need help'],
@@ -101,6 +102,7 @@ const AUTO_REPLIES = [
     response: 'Unfortunately, yes. 💀'
   }
 ];
+
 export default {
   name: Events.MessageCreate,
 
@@ -108,23 +110,19 @@ export default {
     try {
       if (message.author.bot || !message.guild) return;
 
-logger.debug(
-  `Message received from ${message.author.tag}: ${message.content}`
-);
+      logger.debug(
+        `Message received from ${message.author.tag}: ${message.content}`
+      );
 
-const moderationProcessed = await checkAutomaticModeration(message, client);
-if (moderationProcessed) return;
+      // Automatic moderation and strikes
+      const moderationProcessed = await checkAutomaticModeration(message, client);
+      if (moderationProcessed) return;
 
       const countingProcessed = await handleCountingGame(message, client);
-
-      if (countingProcessed) {
-        return;
-      }
+      if (countingProcessed) return;
 
       await handleAutoReply(message);
-
       await handlePrefixCommand(message, client);
-
       await handleLeveling(message, client);
 
     } catch (error) {
@@ -132,19 +130,19 @@ if (moderationProcessed) return;
     }
   }
 };
+
 async function handlePrefixCommand(message, client) {
   try {
     const guildConfig = await getGuildConfig(client, message.guild.id);
     const prefix = guildConfig?.prefix || getCommandPrefix();
     const parsed = parsePrefixCommand(message.content, prefix);
-    
-    if (!parsed) {
-      return; 
-    }
+
+    if (!parsed) return;
 
     let { commandName, args } = parsed;
     const musicPrefixShortcut = commandName.toLowerCase();
     const MUSIC_PREFIX_SHORTCUTS = new Set(['leave', 'pause', 'resume', 'skip', 'stop', 'volume']);
+
     if (MUSIC_PREFIX_SHORTCUTS.has(musicPrefixShortcut)) {
       commandName = 'music';
       args = [musicPrefixShortcut, ...args];
@@ -154,11 +152,12 @@ async function handlePrefixCommand(message, client) {
 
     const resolvedCommandName = resolveCommandAlias(commandName);
     logger.info(`Resolved command name: ${resolvedCommandName}`);
+
     const command = client.commands.get(resolvedCommandName);
 
     if (!command) {
       logger.warn(`Command not found: ${resolvedCommandName}`);
-      return; 
+      return;
     }
 
     if (isMaintenanceMode() && !isBotOwner(message.author.id)) {
@@ -184,6 +183,7 @@ async function handlePrefixCommand(message, client) {
     }
 
     const restriction = getPrefixRestriction(command, args, resolveSubcommandAlias);
+
     if (!supportsPrefixExecution(command) || restriction.blocked) {
       if (restriction.blocked && restriction.reason) {
         const embed = createEmbed({
@@ -191,8 +191,10 @@ async function handlePrefixCommand(message, client) {
           description: `${restriction.reason}\nUse \`/${resolvedCommandName}\` instead.`,
           color: 'info',
         });
+
         await message.channel.send({ embeds: [embed] }).catch(() => {});
       }
+
       return;
     }
 
@@ -202,6 +204,7 @@ async function handlePrefixCommand(message, client) {
         description: 'This command has been disabled for this server.',
         color: 'error',
       });
+
       await message.channel.send({ embeds: [embed] }).catch(() => {});
       return;
     }
@@ -210,25 +213,30 @@ async function handlePrefixCommand(message, client) {
       guildId: message.guild.id,
       user: message.author,
     };
+
     const abuseProtection = await enforceAbuseProtection(
       mockInteractionForProtection,
       command,
       resolvedCommandName,
     );
+
     if (!abuseProtection.allowed) {
       const formattedCooldown = formatCooldownDuration(abuseProtection.remainingMs);
+
       const embed = createEmbed({
         title: 'Command Cooldown',
         description: `This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
         color: 'error',
       });
+
       await message.channel.send({ embeds: [embed] }).catch(() => {});
       return;
     }
 
     logger.info(`Executing prefix command: ${prefix}${commandName} (resolved to ${resolvedCommandName}) by ${message.author.tag}`);
-    
+
     await executePrefixCommand(command, message, args, client, prefix, guildConfig);
+
   } catch (error) {
     logger.error('Error handling prefix command:', error);
   }
@@ -237,6 +245,7 @@ async function handlePrefixCommand(message, client) {
 async function handleCountingGame(message, client) {
   try {
     const config = await getCountingGameConfig(client, message.guild.id);
+
     if (!config.enabled || !config.channelId || message.channel.id !== config.channelId) {
       return false;
     }
@@ -247,6 +256,7 @@ async function handleCountingGame(message, client) {
 
     if (invalidAttempt) {
       await message.delete().catch(() => {});
+
       await saveCountingGameConfig(client, message.guild.id, {
         ...config,
         nextNumber: 1,
@@ -254,7 +264,10 @@ async function handleCountingGame(message, client) {
         currentStreak: 0,
       });
 
-      const failureMessage = await message.channel.send(`❌ Count broken by <@${message.author.id}>. The sequence has been reset to **1**.`);
+      const failureMessage = await message.channel.send(
+        `❌ Count broken by <@${message.author.id}>. The sequence has been reset to **1**.`
+      );
+
       setTimeout(() => {
         failureMessage.delete().catch(() => {});
       }, 10000);
@@ -264,6 +277,7 @@ async function handleCountingGame(message, client) {
 
     await recordCorrectCount(client, message.guild.id, message.author.id);
     return true;
+
   } catch (error) {
     logger.error('Error handling counting game:', error);
     return false;
@@ -273,37 +287,32 @@ async function handleCountingGame(message, client) {
 async function handleLeveling(message, client) {
   try {
     const rateLimitKey = `xp-event:${message.guild.id}:${message.author.id}`;
-    const canProcess = await checkRateLimit(rateLimitKey, MESSAGE_XP_RATE_LIMIT_ATTEMPTS, MESSAGE_XP_RATE_LIMIT_WINDOW_MS);
-    if (!canProcess) {
-      return;
-    }
+
+    const canProcess = await checkRateLimit(
+      rateLimitKey,
+      MESSAGE_XP_RATE_LIMIT_ATTEMPTS,
+      MESSAGE_XP_RATE_LIMIT_WINDOW_MS
+    );
+
+    if (!canProcess) return;
 
     const levelingConfig = await getLevelingConfig(client, message.guild.id);
-    
-    if (!levelingConfig?.enabled) {
-      return;
-    }
 
-    if (levelingConfig.ignoredChannels?.includes(message.channel.id)) {
-      return;
-    }
+    if (!levelingConfig?.enabled) return;
+
+    if (levelingConfig.ignoredChannels?.includes(message.channel.id)) return;
 
     if (levelingConfig.ignoredRoles?.length > 0) {
-      const member = await message.guild.members.fetch(message.author.id).catch(() => {
-        return null;
-      });
+      const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+
       if (member && member.roles.cache.some(role => levelingConfig.ignoredRoles.includes(role.id))) {
         return;
       }
     }
 
-    if (levelingConfig.blacklistedUsers?.includes(message.author.id)) {
-      return;
-    }
+    if (levelingConfig.blacklistedUsers?.includes(message.author.id)) return;
 
-    if (!message.content || message.content.trim().length === 0) {
-      return;
-    }
+    if (!message.content || message.content.trim().length === 0) return;
 
     const userData = await getUserLevelData(client, message.guild.id, message.author.id);
 
@@ -311,9 +320,7 @@ async function handleLeveling(message, client) {
     const now = Date.now();
     const timeSinceLastMessage = now - (userData.lastMessage || 0);
 
-    if (timeSinceLastMessage < cooldownTime * 1000) {
-      return;
-    }
+    if (timeSinceLastMessage < cooldownTime * 1000) return;
 
     const minXP = levelingConfig.xpRange?.min || levelingConfig.xpPerMessage?.min || 15;
     const maxXP = levelingConfig.xpRange?.max || levelingConfig.xpPerMessage?.max || 25;
@@ -324,6 +331,7 @@ async function handleLeveling(message, client) {
     const xpToGive = Math.floor(Math.random() * (safeMaxXP - safeMinXP + 1)) + safeMinXP;
 
     let finalXP = xpToGive;
+
     if (levelingConfig.xpMultiplier && levelingConfig.xpMultiplier > 1) {
       finalXP = Math.floor(finalXP * levelingConfig.xpMultiplier);
     }
@@ -335,12 +343,16 @@ async function handleLeveling(message, client) {
         `${message.author.tag} leveled up to level ${result.level} in ${message.guild.name}`
       );
     }
-   } catch (error) {
+
+  } catch (error) {
     logger.error('Error handling leveling for message:', error);
   }
 }
 
+// ==========================================
 // AUTO-REPLY FUNCTION
+// ==========================================
+
 async function handleAutoReply(message) {
   try {
     const content = message.content.toLowerCase();
