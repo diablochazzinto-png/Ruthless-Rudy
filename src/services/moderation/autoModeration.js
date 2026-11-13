@@ -1,10 +1,10 @@
 
-import { EmbedBuilder, PermissionsBitField } from 'discord.js';
-import { issueStrike } from './strikeSystem.js';
+import {
+    EmbedBuilder,
+    PermissionsBitField
+} from 'discord.js';
 
-// ==========================================
-// IRV AUTOMATIC MODERATION CONFIGURATION
-// ==========================================
+import { issueStrike } from './strikeSystem.js';
 
 const SPAM_LIMIT = 5;
 const SPAM_WINDOW = 5000;
@@ -17,101 +17,46 @@ const recentMessages = new Map();
 // ==========================================
 
 const PROFANITY = [
-    // GENERAL PROFANITY
-    'fuck',
-    'fucking',
-    'fucked',
-    'fucker',
-    'fuckers',
-    'motherfucker',
-    'motherfuckers',
-    'motherfucking',
-    'mothafucka',
-    'muthafucker',
-    'muthafucka',
-    'mofo',
+    'fuck', 'fucking', 'fucked', 'fucker', 'fuckers',
+    'motherfucker', 'motherfuckers', 'motherfucking',
+    'mothafucka', 'muthafucker', 'muthafucka', 'mofo',
+    'fuk', 'fuking', 'fuker', 'fck', 'fuq', 'phuck',
 
-    'shit',
-    'shitty',
-    'bullshit',
-    'shithead',
-    'dipshit',
-    'dumbshit',
+    'shit', 'shitty', 'bullshit', 'shithead',
+    'dipshit', 'dumbshit', 'shyt', 'bullshyt',
 
-    'bitch',
-    'bitches',
-    'bitching',
-    'bastard',
-    'bastards',
-    'asshole',
-    'assholes',
-    'arsehole',
+    'bitch', 'bitches', 'bitching', 'bastard',
+    'bastards', 'asshole', 'assholes', 'arsehole',
+    'biatch', 'btch', 'bich', 'azzhole',
 
-    'dick',
-    'dicks',
-    'dickhead',
-    'cock',
-    'cocks',
-    'pussy',
-    'pussies',
-    'cunt',
-    'cunts',
-    'twat',
-    'prick',
-    'wanker',
+    'dick', 'dicks', 'dickhead', 'cock', 'cocks',
+    'pussy', 'pussies', 'cunt', 'cunts', 'twat',
+    'prick', 'wanker', 'dik', 'kunt',
 
-    'whore',
-    'whores',
-    'slut',
-    'sluts',
-    'douche',
-    'douchebag',
-    'jackass',
-    'dumbass',
-    'asswipe',
+    'whore', 'whores', 'slut', 'sluts',
+    'douche', 'douchebag', 'jackass',
+    'dumbass', 'asswipe', 'dumbazz', 'jackazz',
 
-    'piss',
-    'pissed',
-    'crap',
-    'damn',
-    'hell',
+    'piss', 'pissed', 'crap', 'damn', 'hell',
 
-    // ALTERNATIVE SPELLINGS
-    'fuk',
-    'fuking',
-    'fuker',
-    'fck',
-    'fuq',
-    'phuck',
-    'shyt',
-    'biatch',
-    'btch',
-    'bich',
-    'azzhole',
-    'dik',
-    'kunt',
-    'mthrfkr',
-    'mofucka',
-    'bullshyt',
-    'dipshyt',
-    'dumbazz',
-    'jackazz'
+    'mthrfkr', 'mofucka', 'motherfkr',
+    'fcking', 'fcked', 'fcker',
+    'azz', 'sh1t'
 ];
 
-// Additional terms configured by server administrators.
-const CUSTOM_BLOCKED_TERMS = [
-    // Add additional prohibited terms here.
-];
+// Add your own prohibited terms here.
+const CUSTOM_BLOCKED_TERMS = [];
 
 // ==========================================
-// TEXT NORMALIZATION
+// NORMALIZATION
 // ==========================================
 
 function normalizeText(text) {
-    return text
+    return String(text || '')
         .toLowerCase()
         .normalize('NFKD')
         .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\u200B-\u200F\uFEFF]/g, '')
         .replace(/[０-９]/g, char =>
             String.fromCharCode(char.charCodeAt(0) - 0xFEE0)
         )
@@ -128,18 +73,15 @@ function normalizeText(text) {
 }
 
 // ==========================================
-// PROFANITY PATTERN GENERATOR
+// PROFANITY DETECTION
 // ==========================================
 
-function createProfanityPattern(word) {
-    const normalized = normalizeText(word)
-        .replace(/[^a-z]/g, '');
+function createPattern(word) {
+    const letters = normalizeText(word).replace(/[^a-z0-9]/g, '');
 
-    if (!normalized) return null;
+    if (!letters) return null;
 
-    const letters = [...normalized];
-
-    const pattern = letters
+    const pattern = [...letters]
         .map(letter => `${letter}+`)
         .join('[^a-z0-9]*');
 
@@ -149,15 +91,11 @@ function createProfanityPattern(word) {
     );
 }
 
-// ==========================================
-// PROFANITY DETECTION
-// ==========================================
-
 const PROFANITY_PATTERNS = [
     ...PROFANITY,
     ...CUSTOM_BLOCKED_TERMS
 ]
-    .map(createProfanityPattern)
+    .map(createPattern)
     .filter(Boolean);
 
 function containsProfanity(content) {
@@ -195,8 +133,6 @@ function containsSpam(message) {
 // ==========================================
 
 export async function checkAutomaticModeration(message, client) {
-
-    // IGNORE INVALID MESSAGES
     if (
         !message.guild ||
         message.author.bot ||
@@ -207,13 +143,11 @@ export async function checkAutomaticModeration(message, client) {
 
     const member = message.member;
 
-    // EXEMPT ADMINISTRATORS AND MODERATORS
+    // Only administrators and members with moderation
+    // permissions are exempt from automatic moderation.
     if (
         member.permissions.has(
             PermissionsBitField.Flags.Administrator
-        ) ||
-        member.permissions.has(
-            PermissionsBitField.Flags.ManageMessages
         ) ||
         member.permissions.has(
             PermissionsBitField.Flags.ModerateMembers
@@ -224,49 +158,29 @@ export async function checkAutomaticModeration(message, client) {
 
     let reason = null;
 
-    // CHECK FOR SPAM
     if (containsSpam(message)) {
         reason = 'Repeated messages / flooding';
-    }
-
-    // CHECK FOR PROFANITY
-    if (!reason && containsProfanity(message.content)) {
+    } else if (containsProfanity(message.content)) {
         reason = 'Prohibited language';
     }
 
-    // NO VIOLATION
-    if (!reason) {
-        return false;
-    }
+    if (!reason) return false;
 
     try {
-
-        // ISSUE STRIKE
         const result = await issueStrike(
             client,
             member,
             reason
         );
 
-        if (!result) {
-            return false;
-        }
+        if (!result) return false;
 
-        // DELETE VIOLATING MESSAGE
         await message.delete().catch(error => {
-            console.error(
-                'Could not delete moderated message:',
-                error
-            );
+            console.error('Message deletion failed:', error);
         });
 
-        // CREATE STRIKE EMBED
         const embed = new EmbedBuilder()
-            .setColor(
-                result.strike >= 5
-                    ? 0xC0392B
-                    : 0xE0A526
-            )
+            .setColor(result.strike >= 5 ? 0xC0392B : 0xE0A526)
             .setTitle(`⚠️ STRIKE ${result.strike}`)
             .setDescription(
                 `**Member:** ${member}\n` +
@@ -279,7 +193,6 @@ export async function checkAutomaticModeration(message, client) {
             })
             .setTimestamp();
 
-        // SEND MODERATION NOTICE
         const notice = await message.channel.send({
             content: `${member}`,
             embeds: [embed],
@@ -288,7 +201,6 @@ export async function checkAutomaticModeration(message, client) {
             }
         });
 
-        // DELETE NOTICE AFTER 5 SECONDS
         setTimeout(() => {
             notice.delete().catch(() => {});
         }, NOTICE_DURATION);
@@ -296,11 +208,7 @@ export async function checkAutomaticModeration(message, client) {
         return true;
 
     } catch (error) {
-        console.error(
-            'Automatic moderation error:',
-            error
-        );
-
+        console.error('Automatic moderation error:', error);
         return false;
     }
 }
